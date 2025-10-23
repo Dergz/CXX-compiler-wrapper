@@ -83,6 +83,8 @@ std::vector<std::future<CompileResult>> startAsyncCompiles(const std::vector<std
 int LinkObjects(const std::filesystem::path& RamDir, const std::string& outputName, const std::string& GppString);
 void clearRamDir(const std::filesystem::path& RamDir);
 void clearbuildDir(const std::filesystem::path& BuildDir);
+long long getFileSizeKB(const std::string& path);
+long long getDirectorySizeKB(const std::string& path);
 
 
 //###########################
@@ -121,6 +123,9 @@ void buildprint(const std::string& msg) {
 //###########################
 int main(int argc, char* argv[]){
 
+    clear();
+    auto CompilerTimerStart = std::chrono::steady_clock::now();
+
 // Configuration
     unsigned int cores = std::thread::hardware_concurrency();
     if (cores == 0) cores = 1; // fallback
@@ -141,7 +146,7 @@ int main(int argc, char* argv[]){
         GppString += " -O0 -Wall -Wextra -DNDEBUG";
     }
     if (config.optimize){    // Check for --optimise & sets its addon flags
-        GppString += " -Ofast -march=native -flto -funroll-loops -fomit-frame-pointer -pipe";
+        GppString += " -Ofast -march=native -funroll-loops -fomit-frame-pointer -pipe";
     }
 
 // Header / First display segment
@@ -242,8 +247,7 @@ int main(int argc, char* argv[]){
 
 // Start Compilers / fifth display segment
     Splitter();
-    print("Starting Compilers");
-    print("Scanning for .cxx files...");
+    print("Starting Compiler");
     auto tasks = startAsyncCompiles(rebuildList, RamDir, GppString);
     bool allOk = true;
     double totalTime = 0.0;
@@ -273,6 +277,21 @@ int main(int argc, char* argv[]){
     if (config.clear){print("Clearing Ram Dir & .build"); clearRamDir(RamDir); clearbuildDir(std::filesystem::current_path() / ".build");}
     if (config.clearRD){print("Clearing Ram Dir"); clearRamDir(RamDir);}
     if (config.clearBD){print("Clearing .build"); clearbuildDir(std::filesystem::current_path() / ".build");}
+
+// Gather Info
+    auto CompilerTimerEnd = std::chrono::steady_clock::now();
+    double CompilerTimerduration = std::chrono::duration_cast<std::chrono::duration<double>>(CompilerTimerEnd - CompilerTimerStart).count();
+    long long sizemainKB = getFileSizeKB("main");
+    long long sizedirKB = getDirectorySizeKB(".build");
+
+// Info Dump / Eigth display
+    Splitter();
+    print("Build Info: ");
+    std::cout << "Main File Size: " << sizemainKB << "KB" << std::endl;
+    std::cout << "Build dir Size: " << sizedirKB << "KB" << std::endl;
+    std::cout << "Total Time: " << ((std::round(CompilerTimerduration*1000))/1000) << "s"<< std::endl;
+    
+
 
 // Final Display
     Splitter();
@@ -539,6 +558,7 @@ void clearRamDir(const std::filesystem::path& RamDir) {
     }
 }
 
+
 // Clears out the local .builld directory
 void clearbuildDir(const std::filesystem::path& BuildDir) {
     try {
@@ -553,3 +573,31 @@ void clearbuildDir(const std::filesystem::path& BuildDir) {
     }
 }
 
+
+// Gets a files size
+long long getFileSizeKB(const std::string& path) {
+    try {
+        auto bytes = std::filesystem::file_size(path);
+        return static_cast<long long>(bytes / 1024); // convert bytes to KB
+    } catch (const std::filesystem::filesystem_error&) {return -1;} // return -1 if file doesn't exist or error occurs
+}
+
+
+// Gets a directorys size
+long long getDirectorySizeKB(const std::string& path) {
+    namespace fs = std::filesystem;
+    long long totalBytes = 0;
+
+    try {
+        // Use the new range-based directory iterator form (C++23-friendly)
+        for (const auto& entry : fs::recursive_directory_iterator(path, fs::directory_options::skip_permission_denied)) {
+            if (entry.is_regular_file()) {
+                totalBytes += static_cast<long long>(entry.file_size());
+            }
+        }
+    } catch (const fs::filesystem_error&) {
+        return -1; // invalid path or permission error
+    }
+
+    return (totalBytes + 1023) / 1024; // convert bytes → KB (rounded up)
+}
