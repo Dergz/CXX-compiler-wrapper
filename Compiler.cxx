@@ -254,7 +254,7 @@ int main(int argc, char* argv[]){
     for (auto& t : tasks) {
         CompileResult res = t.get();
         totalTime += res.seconds;
-        std::cout << "  " << res.file << " : " << res.seconds << "s" << (res.exitCode == 0 ? " [OK]" : " [FAIL]") << '\n';
+        std::cout << "  " << res.file << " : " << ((std::round(res.seconds *1000))/1000) << "s" << (res.exitCode == 0 ? " [OK]" : " [FAIL]") << '\n';
         if (res.exitCode != 0)
             allOk = false;
     }
@@ -263,8 +263,12 @@ int main(int argc, char* argv[]){
 // Linker / Sixth display segmen
     Splitter();
     print("Starting Linker");
+    auto LINKTimerStart = std::chrono::steady_clock::now();
     int linkCode = LinkObjects(RamDir, "main", GppString);
     if (linkCode != 0){print("ERROR IN LINKING"); return 1;}
+    auto LINKTimerEnd = std::chrono::steady_clock::now();
+    double LinlerTimerduration = std::chrono::duration_cast<std::chrono::duration<double>>(LINKTimerEnd - LINKTimerStart).count();
+    std::cout << "Link Time: " << ((std::round(LinlerTimerduration*1000))/1000) << "s"<< std::endl;
 
 // Push back / Seventh diplay segment
     Splitter();
@@ -535,9 +539,9 @@ int LinkObjects(const std::filesystem::path& RamDir, const std::string& outputNa
     int code = std::system(command.c_str());
 
     if (code == 0)
-        buildprint("Linked successfully: " + outputPath.string());
+        print("Linked successfully: " + outputPath.string());
     else
-        buildprint("Link failed!");
+        print("Link failed!");
 
     return code;
 }
