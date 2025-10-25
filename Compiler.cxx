@@ -133,7 +133,8 @@ int main(int argc, char* argv[]){
     std::string GppString;
     GppString += "g++ -std=c++23";
     long long availKB = getAvailableMemoryKB();
-    const std::filesystem::path RamDir = "/dev/shm/CXXCompiler";
+    std::string TMPRAMDIRNAM ="/dev/shm/" + std::filesystem::current_path().stem().string();
+    const std::filesystem::path RamDir = TMPRAMDIRNAM;
 
 // Script argument passing
     auto result = parse_args(argc, argv);
